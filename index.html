@@ -56,6 +56,12 @@
   .field { display: grid; gap: 6px; margin-bottom: 14px; }
   .field label { font: 700 13px var(--font-cond); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
   .field input, select.sel, textarea.ta { font: 16px var(--font); padding: 11px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); width: 100%; }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 68px; }
+  .pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); appearance: none; border: 0; background: var(--surface-2); color: var(--purple-ink); font: 700 12px var(--font-cond); letter-spacing: .04em; text-transform: uppercase; padding: 7px 10px; border-radius: 8px; cursor: pointer; }
+  .pw-toggle:hover { background: var(--purple-soft); }
+  .remember { display: flex; align-items: center; gap: 8px; margin: 4px 0 14px; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+  .remember input { accent-color: var(--orange); width: 16px; height: 16px; }
   .field input:focus, select.sel:focus, textarea.ta:focus, .opt:focus-within { outline: 3px solid rgba(221,90,40,.28); outline-offset: 1px; border-color: var(--orange); }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 600px) { .two { grid-template-columns: 1fr; } }
@@ -475,8 +481,14 @@
       <p class="sub">Teachers can see the full class report, read every student's writing and export results. The administrator can also open or close the test and manage submissions.</p>
       <div class="two">
         <div class="field"><label for="l-name">Name</label><input id="l-name" autocomplete="username" placeholder="Teacher name"></div>
-        <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" autocomplete="current-password"></div>
+        <div class="field"><label for="l-pass">Password</label>
+          <div class="pw-wrap">
+            <input id="l-pass" type="password" autocomplete="current-password">
+            <button type="button" class="pw-toggle" id="btn-pw-toggle" aria-label="Show password" tabindex="-1">Show</button>
+          </div>
+        </div>
       </div>
+      <label class="remember"><input type="checkbox" id="l-remember"><span>Remember me on this device</span></label>
       <div class="status err" id="l-err" hidden><span class="dot"></span><span></span></div>
       <p style="margin:10px 0 0"><button class="btn" id="btn-login">Sign in</button></p>
     </div>
@@ -513,7 +525,7 @@
 
 /* ====================== CONFIG ====================== */
 const CONFIG = {
-  API_URL: '',                 // Google Apps Script web-app URL (…/exec). Empty = results stay on this device.
+  API_URL: 'https://script.google.com/macros/s/AKfycbx4MdSCqn2OiDNhF05mhhl6XIM-n2WraI6Z0ehYT225omrUNXn8RWa-ZKNYDQPW-g1rvQ/exec', // Google Apps Script web-app URL
   LOCAL_USERS: [{ name: 'Lê Viên Lan Hương', password: 'htHT14058*', role: 'admin' }],
   PASS_MARK: 5,
   KEY: 'sfb2-mock1'            // localStorage namespace; change to reset every device
@@ -1124,16 +1136,21 @@ document.addEventListener('mousemove', e => { const c = e.target.closest('[data-
 
 /* ====================== TEACHER / ADMIN ====================== */
 function setAuth(a) { A = a; try { a ? sessionStorage.setItem(CONFIG.KEY + ':auth', JSON.stringify(a)) : sessionStorage.removeItem(CONFIG.KEY + ':auth'); } catch (e) {} }
+function rememberedLogin() { try { return JSON.parse(localStorage.getItem(CONFIG.KEY + ':remember')); } catch (e) { return null; } }
+function setRemembered(user, password) { try { if (user && password) localStorage.setItem(CONFIG.KEY + ':remember', JSON.stringify({ user, password })); else localStorage.removeItem(CONFIG.KEY + ':remember'); } catch (e) {} }
+$('#btn-pw-toggle').addEventListener('click', () => { const inp = $('#l-pass'); const show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; $('#btn-pw-toggle').textContent = show ? 'Hide' : 'Show'; });
+(function () { const r = rememberedLogin(); if (r) { $('#l-name').value = r.user; $('#l-pass').value = r.password; $('#l-remember').checked = true; } })();
 $('#btn-login').addEventListener('click', async () => {
   const user = $('#l-name').value.trim(), password = $('#l-pass').value; const err = $('#l-err');
   err.hidden = true; if (!user || !password) { err.hidden = false; err.lastElementChild.textContent = 'Enter your name and password.'; return; }
   $('#btn-login').disabled = true;
-  try { const j = await api('login', { user, password }); if (!j.ok) throw new Error(j.error || 'Sign-in failed'); setAuth({ name: j.name || user, role: j.role || 'teacher', password }); if (j.settings) { SET = Object.assign({}, DEFAULT_SET, j.settings); store.set('settings', SET); applySettings(); } $('#l-pass').value = ''; renderTeacher(); }
+  try { const j = await api('login', { user, password }); if (!j.ok) throw new Error(j.error || 'Sign-in failed'); setAuth({ name: j.name || user, role: j.role || 'teacher', password }); if (j.settings) { SET = Object.assign({}, DEFAULT_SET, j.settings); store.set('settings', SET); applySettings(); } setRemembered($('#l-remember').checked ? user : null, $('#l-remember').checked ? password : null); renderTeacher(); }
   catch (e) { err.hidden = false; err.lastElementChild.textContent = 'Sign-in failed: ' + (e.message || 'wrong name or password'); }
   $('#btn-login').disabled = false;
 });
 $('#l-pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('#btn-login').click(); });
 $('#btn-signout').addEventListener('click', () => { setAuth(null); renderTeacher(); applyLock(); });
+$('#l-remember').addEventListener('change', () => { if (!$('#l-remember').checked) setRemembered(null, null); });
 function renderTeacher() {
   const on = isStaff(); $('#login-card').hidden = on; $('#teacher-panel').hidden = !on; $('#tab-btn-teacher').textContent = on ? (A.role === 'admin' ? 'Admin' : 'Teacher') : 'Teacher';
   if (!on) { $('#l-name').value = $('#l-name').value || (CONFIG.LOCAL_USERS[0] || {}).name || ''; return; }
