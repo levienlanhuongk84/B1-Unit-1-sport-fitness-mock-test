@@ -72,6 +72,12 @@
   .skill input { margin-top: 4px; accent-color: var(--orange); }
   .skill b { display: block; color: var(--purple-ink); }
   .skill small { color: var(--ink-2); font-size: 13px; }
+  .skill { flex-direction: column; }
+  .skill .head { display: flex; gap: 10px; align-items: flex-start; }
+  .skill .pchips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+  .skill .pchips button { appearance: none; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); font: 700 11px var(--font-mono); padding: 5px 8px; border-radius: 999px; cursor: pointer; }
+  .skill .pchips button.on { background: var(--purple); border-color: var(--purple); color: #fff; }
+  .skill.off { opacity: .55; }
   .modes { display: flex; gap: 10px; flex-wrap: wrap; }
   .mode { flex: 1 1 220px; display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
   .mode input { margin-top: 4px; accent-color: var(--orange); }
@@ -91,6 +97,7 @@
   .sk-nav span.done { background: var(--good-soft); color: var(--good); border-color: transparent; }
   .sk-nav span.cur { background: var(--purple); color: #fff; border-color: var(--purple); }
   .testbar { position: sticky; top: 49px; z-index: 25; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 8px 14px; margin-bottom: 14px; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 6px 14px; }
+  @media (max-width: 640px) { .testbar > span { grid-row: 1; grid-column: 2; } }
   .testbar .layout-btn { appearance: none; border: 1px solid var(--line-strong); background: var(--surface); color: var(--purple-ink); font: 700 12px var(--font-cond); letter-spacing: .06em; text-transform: uppercase; padding: 8px 10px; border-radius: 999px; cursor: pointer; }
   @media (max-width: 900px) { .testbar .layout-btn { display: none; } }
   @media (max-width: 640px) { .testbar { grid-template-columns: 1fr auto; padding: 8px 12px; } .testbar .time { font-size: 22px; grid-row: 1; grid-column: 1; } .testbar .btn { grid-row: 1; grid-column: 2; } .testbar .mid { grid-row: 2; grid-column: 1 / -1; } }
@@ -348,13 +355,10 @@
         <div class="field"><label for="f-name">Full name</label><input id="f-name" autocomplete="name" placeholder="e.g. Nguyen Van A" maxlength="80"></div>
         <div class="field"><label for="f-sid">Class / ID (optional)</label><input id="f-sid" placeholder="e.g. CK1 – 12" maxlength="40"></div>
       </div>
-      <h3>Skills to take</h3>
-      <div class="skills" id="skill-pick">
-        <label class="skill"><input type="checkbox" value="reading" checked><span><b>Reading · 60 min</b><small>4 passages · 40 questions · 40 marks</small></span></label>
-        <label class="skill"><input type="checkbox" value="writing" checked><span><b>Writing · 60 min</b><small>Email 120+ words · Essay 250+ words · 30 marks</small></span></label>
-        <label class="skill"><input type="checkbox" value="listening" checked><span><b>Listening · 35 min</b><small>8 announcements · 3 conversations · 3 talks · 35 marks</small></span></label>
-        <label class="skill"><input type="checkbox" value="speaking" checked><span><b>Speaking · 12 min + 5 prep</b><small>Interview · Long turn · Discussion · 10 marks</small></span></label>
-      </div>
+      <h3>What to take</h3>
+      <p class="sub">Tick a whole skill, or only the parts you want to practise. The clock of a skill is the sum of the parts you choose.</p>
+      <div class="skills" id="skill-pick"></div>
+      <p class="sub" id="pick-summary" style="margin-top:10px"></p>
       <h3>Mode</h3>
       <div class="modes" id="mode-pick">
         <label class="mode on"><input type="radio" name="mode" value="exam" checked><span><b>Exam mode</b><br><small>Clocks count down and close each skill when time is up. Each recording plays once, as in the real test.</small></span></label>
@@ -378,7 +382,7 @@
         <div class="time" id="timer">60:00<small id="timer-lbl">Reading</small></div>
         <div class="mid"><div class="lbl"><span id="who"></span><span id="mid-right"></span></div><div class="track"><div class="fill" id="prog-fill"></div></div></div>
         <button class="layout-btn" id="btn-layout" title="Passage beside or above the questions">⇆ Layout</button>
-        <button class="btn sm" id="btn-finish-top">Finish section</button>
+        <span style="display:flex;gap:6px"><button class="btn ghost sm" id="btn-exit" title="Leave this attempt and go back to the start page">Exit</button><button class="btn sm" id="btn-finish-top">Finish section</button></span>
       </div>
       <div id="section-intro" hidden></div>
       <div id="section-body" hidden class="shell">
@@ -395,6 +399,8 @@
     <div class="card" id="done-card" hidden>
       <h2>You have submitted this test</h2>
       <p class="sub">Your answers are locked. Open <a href="#" data-go="results">My results</a> for your scores, every explanation and the evidence in the texts, or <a href="#" data-go="report">Class report</a> for the ranking.</p>
+      <p style="margin:6px 0 0"><button class="btn ghost" id="btn-again">Back to the start page · take another part</button></p>
+      <p class="sub" style="margin:8px 0 0;font-size:13px">A new attempt is saved separately; the ranking keeps your first attempt.</p>
     </div>
   </section>
 
@@ -545,17 +551,20 @@ const PART = Object.fromEntries(PARTS.map(p => [p.id, p]));
 const ITEM = Object.fromEntries(ITEMS.map(it => [it.id, it]));
 PARTS.forEach(p => { const row = PLAN[p.skill].parts.find(x => x[0] === p.id); p.min = row ? row[1] : 0; });
 const partsOf = skill => PARTS.filter(p => p.skill === skill);
-const objMax = skills => ITEMS.filter(it => skills.includes(it.skill)).length;
+const takenParts = skill => { const sel = S.parts && S.parts[skill]; return partsOf(skill).filter(p => !sel || sel.includes(p.id)); };
+const takenItems = () => ITEMS.filter(it => S.skills.includes(it.skill) && takenParts(it.skill).some(p => p.id === it.part));
+const objMax = () => takenItems().length;
+const skillMinutes = skill => { const pl = PLAN[skill], tp = takenParts(skill); return tp.length === partsOf(skill).length ? pl.minutes : tp.reduce((s, p) => s + p.min, 0); };
 
 const DEFAULT_SET = { open: true, passMark: CONFIG.PASS_MARK, showRanking: true, message: '' };
 let SET = Object.assign({}, DEFAULT_SET, store.get('settings', {}));
-const fresh = () => ({ status: 'idle', name: '', sid: '', mode: 'exam', skills: SKILLS.slice(), si: 0, phase: 'intro', secStart: 0, secDur: 0, pi: 0, answers: {}, writing: { W1: '', W2: '' }, ticks: {}, partTime: {}, secTime: {}, secAuto: {}, audio: {}, audioPos: {}, hl: {}, flags: {}, layout: 'side', hlOn: true, result: null, clientId: uuid(), pending: null, lastTick: 0 });
+const fresh = () => ({ status: 'idle', name: '', sid: '', mode: 'exam', skills: SKILLS.slice(), parts: {}, si: 0, phase: 'intro', secStart: 0, secDur: 0, pi: 0, answers: {}, writing: { W1: '', W2: '' }, ticks: {}, partTime: {}, secTime: {}, secAuto: {}, audio: {}, audioPos: {}, hl: {}, flags: {}, layout: 'side', hlOn: true, result: null, clientId: uuid(), pending: null, lastTick: 0 });
 let S = Object.assign(fresh(), store.get('state') || {});
 function save() { store.set('state', S); }
 let A = null; try { A = JSON.parse(sessionStorage.getItem(CONFIG.KEY + ':auth')); } catch (e) {}
 const isStaff = () => !!A, isAdmin = () => !!A && A.role === 'admin';
 const curSkill = () => S.skills[S.si];
-const curParts = () => partsOf(curSkill());
+const curParts = () => takenParts(curSkill());
 const curPart = () => curParts()[S.pi];
 const keyLetter = it => 'ABCD'[it.a];
 const isRight = (it, given) => given !== '' && given === keyLetter(it);
@@ -612,14 +621,34 @@ $('#plan-body').innerHTML = SKILLS.map(sk => {
   const rows = pl.parts.map(([id, min]) => { const p = PART[id]; const what = p.kind === 'reading' ? '10 questions · about 1.5 min each' : p.kind === 'listening' ? `audio ${p.src.audioMin} min + time to check` : p.kind === 'prep' ? 'read the topic card, make notes' : p.kind === 'writing' ? `at least ${p.src.minWords} words` : p.id === 'S1' ? '6 questions · about 30 s each' : p.id === 'S2' ? '1 min to plan · talk without stopping' : '4 questions · reason + example each'; return `<tr><td class="part">${esc(p.title)}</td><td>${what}</td><td class="num">${min} min</td><td class="num"></td></tr>`; }).join('');
   return `<tr class="sk"><td>${pl.label}</td><td>${desc}</td><td class="num">${pl.minutes} min</td><td class="num">${pl.score}</td></tr>${rows}`;
 }).join('') + `<tr class="sk"><td>Total</td><td>the full test, with breaks between skills</td><td class="num">${SKILLS.reduce((s, k) => s + PLAN[k].minutes, 0)} min</td><td class="num">115</td></tr>`;
+const SKILL_BLURB = { reading: ['Reading · 60 min', '4 passages · 40 questions · 40 marks'], writing: ['Writing · 60 min', 'Email 120+ words · Essay 250+ words · 30 marks'], listening: ['Listening · 35 min', '8 announcements · 3 conversations · 3 talks · 35 marks'], speaking: ['Speaking · 12 min + 5 prep', 'Interview · Long turn · Discussion · 10 marks'] };
+$('#skill-pick').innerHTML = SKILLS.map(sk => `<div class="skill" data-sk="${sk}"><label class="head"><input type="checkbox" value="${sk}" checked><span><b>${SKILL_BLURB[sk][0]}</b><small>${SKILL_BLURB[sk][1]}</small></span></label><div class="pchips">${partsOf(sk).map(p => `<button type="button" class="on" data-part="${p.id}" title="${esc(p.title)}">${p.id} · ${p.min}′</button>`).join('')}</div></div>`).join('');
+function pickState() {
+  const out = { skills: [], parts: {} };
+  $$('#skill-pick .skill').forEach(card => { const sk = card.dataset.sk; const on = card.querySelector('input').checked; const ps = $$('.pchips button.on', card).map(b => b.dataset.part); if (on && ps.length) { out.skills.push(sk); out.parts[sk] = ps; } });
+  return out;
+}
+function pickSummary() {
+  const st = pickState(); const el = $('#pick-summary');
+  if (!st.skills.length) { el.textContent = 'Nothing selected yet.'; return; }
+  const saved = { skills: S.skills, parts: S.parts }; S.skills = st.skills; S.parts = st.parts;
+  const mins = st.skills.reduce((s, sk) => s + skillMinutes(sk), 0), items = objMax();
+  el.innerHTML = `Selected: <b>${st.skills.map(sk => PLAN[sk].label + ' (' + st.parts[sk].join(', ') + ')').join(' · ')}</b> — about <b>${mins} min</b>${items ? `, ${items} objective questions` : ''}.`;
+  S.skills = saved.skills; S.parts = saved.parts;
+}
+$('#skill-pick').addEventListener('click', e => {
+  const b = e.target.closest('[data-part]'); if (b) { b.classList.toggle('on'); const card = b.closest('.skill'); const any = $$('.pchips button.on', card).length > 0; card.querySelector('input').checked = any; card.classList.toggle('off', !any); pickSummary(); }
+});
+$('#skill-pick').addEventListener('change', e => { const i = e.target; if (!i.matches('input[type=checkbox]')) return; const card = i.closest('.skill'); $$('.pchips button', card).forEach(b => b.classList.toggle('on', i.checked)); card.classList.toggle('off', !i.checked); pickSummary(); });
+pickSummary();
 $$('#mode-pick input').forEach(r => r.addEventListener('change', () => $$('#mode-pick .mode').forEach(m => m.classList.toggle('on', m.querySelector('input').checked))));
 $('#btn-start').addEventListener('click', async () => {
   const name = $('#f-name').value.trim(), sid = $('#f-sid').value.trim();
   if (name.length < 2) { $('#f-name').focus(); $('#f-name').style.borderColor = 'var(--bad)'; return; }
-  const skills = $$('#skill-pick input:checked').map(i => i.value);
-  if (!skills.length) { alert('Choose at least one skill.'); return; }
+  const pick = pickState();
+  if (!pick.skills.length) { alert('Choose at least one part.'); return; }
   await refreshSettings(); if (!SET.open) return;
-  S = Object.assign(fresh(), { status: 'running', name, sid, mode: $('#mode-pick input:checked').value, skills, clientId: S.clientId });
+  S = Object.assign(fresh(), { status: 'running', name, sid, mode: $('#mode-pick input:checked').value, skills: pick.skills, parts: pick.parts, clientId: S.clientId });
   save(); renderQuiz();
 });
 
@@ -641,13 +670,15 @@ function renderIntro() {
   const extra = sk === 'listening' ? '<li>Put on headphones. Each recording plays <b>once</b>' + (S.mode === 'practice' ? ' (practice mode: you can replay it)' : '') + '. Read the questions during the pauses.</li>'
     : sk === 'speaking' ? '<li>Allow the microphone when the browser asks. Recordings stay in your browser and are not uploaded.</li><li>You get 5 minutes to read the topic card and make notes before the clock of the test starts.</li>'
     : sk === 'writing' ? '<li>Type your two texts in the boxes. They are saved as you type and sent to the teacher when you submit.</li>' : '<li>Read the questions first, then the passage. Answer every question; there is no penalty for a wrong answer.</li>';
-  const mins = pl.prep ? `${pl.prep} min preparation + ${pl.minutes - pl.prep} minutes` : `${pl.minutes} minutes`;
+  const tp = takenParts(sk), full = tp.length === partsOf(sk).length, total = skillMinutes(sk);
+  const mins = full && pl.prep ? `${pl.prep} min preparation + ${pl.minutes - pl.prep} minutes` : `${total} minutes${full ? '' : ' (' + tp.length + ' of ' + partsOf(sk).length + ' parts)'}`;
   box.innerHTML = `<div class="card"><div class="eyebrow" style="color:var(--orange-ink)">Section ${S.si + 1} of ${S.skills.length}</div><h2>${pl.label} · ${mins} · ${pl.score} marks</h2>
     <p class="sub">${esc(pl.tip)}</p>
-    <table class="plan"><thead><tr><th>Part</th><th class="num">Suggested</th></tr></thead><tbody>${pl.parts.map(([id, m]) => `<tr><td>${esc(PART[id].title)}</td><td class="num">${m} min</td></tr>`).join('')}</tbody></table>
+    <table class="plan"><thead><tr><th>Part</th><th class="num">Suggested</th></tr></thead><tbody>${tp.map(p => `<tr><td>${esc(p.title)}</td><td class="num">${p.min} min</td></tr>`).join('')}</tbody></table>
     <ul class="rules">${extra}<li>The clock starts when you press the button. ${S.mode === 'exam' ? 'When it reaches zero the section closes and your answers are kept.' : 'In practice mode it only warns you.'}</li></ul>
-    <p style="margin:18px 0 0"><button class="btn" id="btn-begin">Start ${pl.label} · ${pl.minutes}:00</button></p></div>`;
-  $('#btn-begin').addEventListener('click', () => { S.phase = 'run'; S.secStart = Date.now(); S.secDur = pl.minutes * 60; S.pi = 0; S.lastTick = Date.now(); save(); renderSection(); });
+    <p style="margin:18px 0 0;display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="btn-begin">Start ${pl.label} · ${total}:00</button><button class="btn ghost" id="btn-exit-intro">← Back to the start page</button></p></div>`;
+  $('#btn-begin').addEventListener('click', () => { S.phase = 'run'; S.secStart = Date.now(); S.secDur = total * 60; S.pi = 0; S.lastTick = Date.now(); save(); renderSection(); });
+  $('#btn-exit-intro').addEventListener('click', exitAttempt);
 }
 function renderSection() {
   $('#section-intro').hidden = true; $('#section-body').hidden = false; $('#testbar').hidden = false;
@@ -661,7 +692,7 @@ function renderPartsNav() {
   $('#btn-prev-part').hidden = S.pi === 0; $('#btn-next-part').hidden = S.pi >= parts.length - 1;
   $('#finish-note').textContent = curSkill() === 'reading' || curSkill() === 'listening' ? unansweredNote() : curSkill() === 'writing' ? `Task 1: ${words(S.writing.W1)} words · Task 2: ${words(S.writing.W2)} words` : 'Record each part, then finish the section.';
 }
-function unansweredNote() { const its = ITEMS.filter(it => it.skill === curSkill()); const left = its.filter(it => !(S.answers[it.id])).length; return left ? `${left} of ${its.length} questions unanswered in this section.` : 'All questions in this section answered.'; }
+function unansweredNote() { const its = takenItems().filter(it => it.skill === curSkill()); const left = its.filter(it => !(S.answers[it.id])).length; return left ? `${left} of ${its.length} questions unanswered in this section.` : 'All questions in this section answered.'; }
 function gotoPart(i) { stopRec(); S.pi = i; S.lastTick = Date.now(); save(); renderPartsNav(); renderPart(); renderPalette(); window.scrollTo({ top: 0 }); }
 $('#btn-prev-part').addEventListener('click', () => gotoPart(S.pi - 1));
 $('#btn-next-part').addEventListener('click', () => gotoPart(S.pi + 1));
@@ -779,7 +810,7 @@ function renderPalette() {
   const pal = $('#palette'); if (!pal || S.phase !== 'run') return;
   const sk = curSkill(), parts = curParts(); const p = curPart();
   if (sk === 'reading' || sk === 'listening') {
-    const its = ITEMS.filter(it => it.skill === sk); const done = its.filter(it => S.answers[it.id]).length, flagged = its.filter(it => S.flags[it.id]).length;
+    const its = takenItems().filter(it => it.skill === sk); const done = its.filter(it => S.answers[it.id]).length, flagged = its.filter(it => S.flags[it.id]).length;
     pal.innerHTML = `<h4>Questions · ${done}/${its.length} answered${flagged ? ` · ${flagged} flagged` : ''}</h4>` + parts.map((pp, i) => `<div class="pgrp"><div class="lab${i === S.pi ? ' cur' : ''}${(S.partTime[pp.id] || 0) > pp.min * 60 ? ' over' : ''}" data-pi="${i}"><span>${esc(pp.id)} · ${esc(pp.title.replace(/^(Passage \d+|Part \d+) · /, ''))}</span><span class="pt" data-ppt="${pp.id}">${mmss(S.partTime[pp.id] || 0)}/${pp.min}′</span></div><div class="nums">${PART_ITEMS[pp.id].map(it => `<button data-q="${it.id}" data-pi="${i}" class="${S.answers[it.id] ? 'done' : ''}${S.flags[it.id] ? ' flag' : ''}">${it.n}</button>`).join('')}</div></div>`).join('') + `<div class="legend"><span><i class="d"></i>answered</span><span><i></i>not yet</span><span><i class="f"></i>flagged</span></div>`;
   } else if (sk === 'writing') {
     pal.innerHTML = `<h4>Tasks</h4>` + parts.map((pp, i) => `<div class="prow${i === S.pi ? ' cur' : ''}" data-pi="${i}"><span>${esc(pp.title)}</span><b>${words(S.writing[pp.id])} w</b></div>`).join('') + `<div class="legend"><span>Task 1 ≥ 120 words · Task 2 ≥ 250 words</span></div>`;
@@ -846,7 +877,7 @@ function startTimer() {
     const exam = S.mode === 'exam';
     t.firstChild.textContent = exam ? mmss(Math.max(0, left)) : mmss(elapsed);
     t.className = 'time' + (exam ? (left <= 60 ? ' danger' : left <= 300 ? ' warn' : '') : (left < 0 ? ' warn' : ''));
-    $('#timer-lbl').textContent = PLAN[curSkill()].label + (exam ? ' · left' : left < 0 ? ' · over the ' + PLAN[curSkill()].minutes + ' min' : ' · elapsed');
+    $('#timer-lbl').textContent = PLAN[curSkill()].label + (exam ? ' · left' : left < 0 ? ' · over the ' + Math.round(S.secDur / 60) + ' min' : ' · elapsed');
     $('#prog-fill').style.width = Math.min(100, elapsed / S.secDur * 100) + '%';
     $('#mid-right').textContent = `${p.id} · ${mmss(S.partTime[p.id] || 0)} of ${p.min} min`;
     const pv = $('#ptimer-v'); if (pv) { pv.textContent = mmss(S.partTime[p.id] || 0); $('#ptimer').classList.toggle('over', (S.partTime[p.id] || 0) > p.min * 60); }
@@ -882,20 +913,25 @@ async function finishSection(auto) {
   if (S.si < S.skills.length) { renderSkillNav(); renderIntro(); window.scrollTo({ top: 0 }); } else submitAll();
 }
 function grade() {
-  const rows = ITEMS.filter(it => S.skills.includes(it.skill)).map(it => { const a = S.answers[it.id] || ''; return { id: it.id, a, ok: isRight(it, a) }; });
+  const rows = takenItems().map(it => { const a = S.answers[it.id] || ''; return { id: it.id, a, ok: isRight(it, a) }; });
   const okById = Object.fromEntries(rows.map(r => [r.id, r.ok]));
   const cnt = sk => ITEMS.filter(it => it.skill === sk && okById[it.id]).length;
-  const total = objMax(S.skills), correct = rows.filter(r => r.ok).length;
+  const total = objMax(), correct = rows.filter(r => r.ok).length;
   return { rows, correct, total, reading: S.skills.includes('reading') ? cnt('reading') : null, listening: S.skills.includes('listening') ? cnt('listening') : null, score10: total ? Math.round(correct / total * 100) / 10 : 0 };
 }
 function submitAll() {
   const g = grade(), now = Date.now();
-  S.result = { name: S.name, sid: S.sid, mode: S.mode, skills: S.skills, score10: g.score10, correct: g.correct, total: g.total, reading: g.reading, listening: g.listening,
+  S.result = { name: S.name, sid: S.sid, mode: S.mode, skills: S.skills, parts: S.parts, partsTaken: S.skills.map(sk => takenParts(sk).map(p => p.id).join(',')).join('|'), rmax: takenParts('reading').reduce((s, p) => s + (PART_ITEMS[p.id] || []).length, 0), lmax: takenParts('listening').reduce((s, p) => s + (PART_ITEMS[p.id] || []).length, 0), score10: g.score10, correct: g.correct, total: g.total, reading: g.reading, listening: g.listening,
     timeSec: Object.values(S.secTime).reduce((s, x) => s + x, 0), startedAt: new Date(S.secStart).toISOString(), submittedAt: new Date(now).toISOString(), clientId: S.clientId,
     auto: Object.values(S.secAuto).some(Boolean), secAuto: S.secAuto, answers: g.rows, writing: { W1: S.writing.W1 || '', W2: S.writing.W2 || '' }, wwords: { W1: words(S.writing.W1), W2: words(S.writing.W2) }, secTime: S.secTime, partTime: Object.fromEntries(Object.entries(S.partTime).map(([k, v]) => [k, Math.round(v)])) };
   S.status = 'done'; S.pending = S.result; save();
   renderResults(); showTab('results'); lockTest(); send();
 }
+function exitAttempt() {
+  ask('Leave this attempt and go back to the start page? Answers and clocks of this attempt will be discarded.', 'Leave').then(ok => { if (!ok) return; clearInterval(tick); stopRec(); if (AU) { try { AU.pause(); } catch (e) {} AU = null; } S = Object.assign(fresh(), { name: S.name, sid: S.sid, clientId: S.clientId }); save(); $('#quiz').hidden = true; $('#start-card').hidden = false; $('#f-name').value = S.name || ''; $('#f-sid').value = S.sid || ''; pickSummary(); window.scrollTo({ top: 0 }); });
+}
+$('#btn-exit').addEventListener('click', exitAttempt);
+$('#btn-again').addEventListener('click', () => { S = Object.assign(fresh(), { name: S.name, sid: S.sid }); save(); $('#done-card').hidden = true; $('#tab-btn-results').hidden = true; $('#start-card').hidden = false; $('#f-name').value = S.name || ''; $('#f-sid').value = S.sid || ''; pickSummary(); showTab('test'); });
 function lockTest() { $('#quiz').hidden = true; $('#start-card').hidden = true; $('#reset-note').hidden = true; $('#done-card').hidden = false; $('#tab-btn-results').hidden = false; }
 function resetForRetake() { S = Object.assign(fresh(), { name: S.name, sid: S.sid }); save(); $('#done-card').hidden = true; $('#quiz').hidden = true; $('#tab-btn-results').hidden = true; $('#start-card').hidden = false; $('#reset-note').hidden = false; $('#f-name').value = S.name || ''; $('#f-sid').value = S.sid || ''; }
 async function send() {
@@ -937,8 +973,8 @@ function renderResults() {
   const took = r.skills;
   $('#r-score').innerHTML = `${r.correct}<small> / ${r.total} objective</small>`;
   const facts = [];
-  if (took.includes('reading')) facts.push(['Reading', `${r.reading} / 40`, mmss(r.secTime.reading || 0) + ' used']);
-  if (took.includes('listening')) facts.push(['Listening', `${r.listening} / 35`, mmss(r.secTime.listening || 0) + ' used']);
+  if (took.includes('reading')) facts.push(['Reading', `${r.reading} / ${r.rmax || 40}`, mmss(r.secTime.reading || 0) + ' used']);
+  if (took.includes('listening')) facts.push(['Listening', `${r.listening} / ${r.lmax || 35}`, mmss(r.secTime.listening || 0) + ' used']);
   if (took.includes('writing')) facts.push(['Writing', `${r.wwords.W1} + ${r.wwords.W2} w`, 'teacher marks /30']);
   if (took.includes('speaking')) facts.push(['Speaking', `${['S1', 'S2', 'S3'].filter(k => RECS[k]).length} / 3 rec.`, 'teacher marks /10']);
   facts.push(['Objective /10', r.score10.toFixed(1), `${r.correct} of ${r.total}`], ['Submitted', fmtDate(r.submittedAt), r.auto ? 'a section timed out' : r.mode + ' mode']);
@@ -946,13 +982,13 @@ function renderResults() {
   // time table
   let rows = '';
   took.forEach(sk => {
-    const pl = PLAN[sk], used = r.secTime[sk] || 0;
-    rows += `<tr><td><b>${pl.label}</b></td><td class="num">${pl.minutes}:00</td><td class="num ${used > pl.minutes * 60 ? 'over' : 'under'}">${mmss(used)}</td><td>${r.secAuto && r.secAuto[sk] ? 'time ran out' : used > pl.minutes * 60 ? 'over' : 'within the limit'}</td></tr>`;
-    pl.parts.forEach(([id, m]) => { const t = r.partTime[id] || 0; rows += `<tr><td style="padding-left:22px;color:var(--ink-2)">${esc(PART[id].title)}</td><td class="num">${m}:00</td><td class="num ${t > m * 60 ? 'over' : 'under'}">${mmss(t)}</td><td>${t > m * 60 ? 'over by ' + mmss(t - m * 60) : t === 0 ? '—' : 'ok'}</td></tr>`; });
+    const pl = PLAN[sk], used = r.secTime[sk] || 0, tp = takenParts(sk), lim = skillMinutes(sk);
+    rows += `<tr><td><b>${pl.label}</b>${tp.length < partsOf(sk).length ? ` <span class="chip mu">${tp.length} of ${partsOf(sk).length} parts</span>` : ''}</td><td class="num">${lim}:00</td><td class="num ${used > lim * 60 ? 'over' : 'under'}">${mmss(used)}</td><td>${r.secAuto && r.secAuto[sk] ? 'time ran out' : used > lim * 60 ? 'over' : 'within the limit'}</td></tr>`;
+    tp.forEach(p => { const id = p.id, m = p.min, t = r.partTime[id] || 0; rows += `<tr><td style="padding-left:22px;color:var(--ink-2)">${esc(PART[id].title)}</td><td class="num">${m}:00</td><td class="num ${t > m * 60 ? 'over' : 'under'}">${mmss(t)}</td><td>${t > m * 60 ? 'over by ' + mmss(t - m * 60) : t === 0 ? '—' : 'ok'}</td></tr>`; });
   });
   $('#r-time').innerHTML = `<thead><tr><th>Section / part</th><th class="num">Plan</th><th class="num">You</th><th>Status</th></tr></thead><tbody>${rows}</tbody>`;
   const okById = Object.fromEntries(r.answers.map(a => [a.id, a]));
-  const objParts = PARTS.filter(p => (p.kind === 'reading' || p.kind === 'listening') && took.includes(p.skill));
+  const objParts = PARTS.filter(p => (p.kind === 'reading' || p.kind === 'listening') && took.includes(p.skill) && takenParts(p.skill).some(x => x.id === p.id));
   $('#r-parts').innerHTML = objParts.map(p => { const its = PART_ITEMS[p.id]; const c = its.filter(it => okById[it.id] && okById[it.id].ok).length; return bar(p.title, c / its.length * 100, `${c}/${its.length}`); }).join('') || '<div class="empty">No objective sections taken.</div>';
   // review with evidence
   $('#r-review').innerHTML = objParts.map(p => {
@@ -991,7 +1027,7 @@ function renderWritingResults() {
   const host = $('#r-writing'); const r = S.result;
   if (!r.skills.includes('writing')) { host.innerHTML = ''; return; }
   const crit = `<h3>Marking criteria</h3><div class="tbl-wrap"><table class="tm"><thead><tr><th>Criterion</th><th>What the examiner looks for</th></tr></thead><tbody>${TEST.writing.criteria.map(c => `<tr><td><b>${esc(c[0])}</b></td><td>${esc(c[1])}</td></tr>`).join('')}</tbody></table></div>`;
-  host.innerHTML = ['t1', 't2'].map(k => {
+  host.innerHTML = ['t1', 't2'].filter(k => takenParts('writing').some(p => p.id === TEST.writing[k].id)).map(k => {
     const W = TEST.writing[k], id = W.id, txt = S.writing[id] || '', an = analyse(txt, W);
     const auto = id === 'W1' ? [an.greet && an.signoff, null, null, null, /if i were you|why not|you could|you should|i'd recommend|don't worry/i.test(txt), an.col.length >= 5] : [an.position, an.paras >= 3, an.paras >= 4, an.concession, an.paras >= 4, an.col.length >= 8 && an.sportN <= 5];
     const stats = [[`${an.n} words`, an.minOk], [`${an.paras} paragraph${an.paras === 1 ? '' : 's'}`, id === 'W1' ? an.paras >= 3 : an.paras >= 4], [`${an.col.length} unit phrases`, an.col.length >= (id === 'W1' ? 5 : 8)], [`${an.link.length} linking words`, an.link.length >= (id === 'W1' ? 2 : 4)]];
@@ -1014,9 +1050,10 @@ function renderSpeakingResults() {
     ${RECS[id] ? `<audio controls src="${RECS[id].url}" style="width:100%;margin:6px 0 10px"></audio><p class="sub">Your recording (${mmss(RECS[id].sec)}). It stays in this browser tab only; download it from the player menu if you want to keep it.</p>` : '<p class="sub">No recording kept for this part' + (S.recLost ? ' (recordings are lost when the page is reloaded)' : '') + '. Listen back on your phone if you recorded there.</p>'}
     <ul class="checks">${sp.checks[id].map((c, i) => { const key = id + ':' + i; return `<li><input type="checkbox" data-tick="${key}" ${S.ticks[key] ? 'checked' : ''}><span>${esc(c)}</span></li>`; }).join('')}</ul>
     <div class="notes" style="margin-top:10px">Examiner's notes: ${esc(X.note)}</div>${body || ''}</div>`;
-  host.innerHTML = partBox('S1', sp.p1, `<details class="fold"><summary>The questions again</summary><div class="in"><ul class="qlist">${sp.p1.sets.map(([lead, qs]) => qs.map((q, i) => `<li>${i === 0 ? `<span class="lead">${esc(lead)}</span>` : ''}${esc(q)}</li>`).join('')).join('')}</ul></div></details>`)
-    + partBox('S2', sp.p2, `<details class="fold"><summary>Sample answer (about 2 minutes)</summary><div class="in"><div class="sample">${sp.p2.sample.map(t => `<p>${esc(t)}</p>`).join('')}</div></div></details>`)
-    + partBox('S3', sp.p3, `<details class="fold"><summary>Possible lines of argument</summary><div class="in"><div class="tbl-wrap"><table class="tm"><thead><tr><th>Question</th><th>Points a good candidate might make</th></tr></thead><tbody>${sp.p3.sample.map(s => `<tr><td><b>${esc(s[0])}</b></td><td>${esc(s[1])}</td></tr>`).join('')}</tbody></table></div></div></details>`);
+  const tk = takenParts('speaking').map(p => p.id);
+  host.innerHTML = (tk.includes('S1') ? partBox('S1', sp.p1, `<details class="fold"><summary>The questions again</summary><div class="in"><ul class="qlist">${sp.p1.sets.map(([lead, qs]) => qs.map((q, i) => `<li>${i === 0 ? `<span class="lead">${esc(lead)}</span>` : ''}${esc(q)}</li>`).join('')).join('')}</ul></div></details>`) : '')
+    + (tk.includes('S2') ? partBox('S2', sp.p2, `<details class="fold"><summary>Sample answer (about 2 minutes)</summary><div class="in"><div class="sample">${sp.p2.sample.map(t => `<p>${esc(t)}</p>`).join('')}</div></div></details>`) : '')
+    + (tk.includes('S3') ? partBox('S3', sp.p3, `<details class="fold"><summary>Possible lines of argument</summary><div class="in"><div class="tbl-wrap"><table class="tm"><thead><tr><th>Question</th><th>Points a good candidate might make</th></tr></thead><tbody>${sp.p3.sample.map(s => `<tr><td><b>${esc(s[0])}</b></td><td>${esc(s[1])}</td></tr>`).join('')}</tbody></table></div></div></details>`) : '');
   host.onchange = e => { const c = e.target.closest('[data-tick]'); if (!c) return; S.ticks[c.dataset.tick] = c.checked; save(); };
 }
 
@@ -1034,7 +1071,7 @@ async function loadReport() {
   rpTimer = setInterval(() => { if (!$('#tab-report').hidden && document.visibilityState === 'visible') loadReport(); }, 45000);
 }
 $('#btn-refresh').addEventListener('click', loadReport);
-function cleanRows(rows) { return rows.map(r => ({ ...r, score10: +r.score10 || 0, correct: +r.correct || 0, total: +r.total || 0, reading: r.reading === null || r.reading === undefined || r.reading === '' ? null : +r.reading, listening: r.listening === null || r.listening === undefined || r.listening === '' ? null : +r.listening, timeSec: +r.timeSec || 0, answers: Array.isArray(r.answers) ? r.answers : [], writing: r.writing && typeof r.writing === 'object' ? r.writing : { W1: '', W2: '' }, wwords: r.wwords || {} })).filter(r => r.name); }
+function cleanRows(rows) { return rows.map(r => ({ ...r, score10: +r.score10 || 0, correct: +r.correct || 0, total: +r.total || 0, reading: r.reading === null || r.reading === undefined || r.reading === '' ? null : +r.reading, listening: r.listening === null || r.listening === undefined || r.listening === '' ? null : +r.listening, timeSec: +r.timeSec || 0, rmax: +r.rmax || 40, lmax: +r.lmax || 35, partsTaken: r.partsTaken || '', answers: Array.isArray(r.answers) ? r.answers : [], writing: r.writing && typeof r.writing === 'object' ? r.writing : { W1: '', W2: '' }, wwords: r.wwords || {} })).filter(r => r.name); }
 function dedupe(rows) { const clean = cleanRows(rows).sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt)); const seen = new Map(); clean.forEach(r => { const k = norm(r.name) + '|' + norm(r.sid); if (seen.has(k)) seen.get(k).attempts++; else seen.set(k, { ...r, attempts: 1 }); }); return Array.from(seen.values()); }
 function renderReport(rows) {
   const R = dedupe(rows);
@@ -1070,13 +1107,13 @@ function renderRank() {
   const tb = $('#rp-rank tbody'); if (!RANK.length) { tb.innerHTML = '<tr><td colspan="8" class="empty">No submissions yet.</td></tr>'; return; }
   const rows = RANK.slice().sort((a, b) => { let x = a[sortKey], y = b[sortKey]; if (sortKey === 'submittedAt') { x = new Date(x); y = new Date(y); } if (x === null) x = -1; if (y === null) y = -1; if (typeof x === 'string') { x = x.toLowerCase(); y = String(y).toLowerCase(); } return (x > y ? 1 : x < y ? -1 : 0) * sortDir || a.rank - b.rank; });
   const medal = r => r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : '';
-  tb.innerHTML = rows.map(r => `<tr class="${r.rank <= 3 ? 'top' : ''}"><td class="num"><span class="rank">${r.rank}</span> <span class="medal">${medal(r)}</span></td><td>${esc(r.name)}${r.attempts > 1 ? `<span class="att">×${r.attempts}</span>` : ''}</td><td>${esc(r.sid || '')}</td><td class="num"><b>${r.score10.toFixed(1)}</b></td><td class="num">${r.reading === null ? '—' : r.reading + '/40'}</td><td class="num">${r.listening === null ? '—' : r.listening + '/35'}</td><td class="num">${mmss(r.timeSec)}</td><td>${fmtDate(r.submittedAt)}</td></tr>`).join('');
+  tb.innerHTML = rows.map(r => `<tr class="${r.rank <= 3 ? 'top' : ''}"><td class="num"><span class="rank">${r.rank}</span> <span class="medal">${medal(r)}</span></td><td>${esc(r.name)}${r.attempts > 1 ? `<span class="att">×${r.attempts}</span>` : ''}</td><td>${esc(r.sid || '')}</td><td class="num"><b>${r.score10.toFixed(1)}</b></td><td class="num" title="${esc(r.partsTaken || '')}">${r.reading === null ? '—' : r.reading + '/' + (r.rmax || 40)}</td><td class="num">${r.listening === null ? '—' : r.listening + '/' + (r.lmax || 35)}</td><td class="num">${mmss(r.timeSec)}</td><td>${fmtDate(r.submittedAt)}</td></tr>`).join('');
   $$('#rp-rank th').forEach(th => th.classList.toggle('sorted', th.dataset.k === sortKey));
 }
 $$('#rp-rank th').forEach(th => th.addEventListener('click', () => { const k = th.dataset.k; if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = (k === 'score10' || k === 'reading' || k === 'listening') ? -1 : 1; } renderRank(); }));
 function downloadCsv(rows, fname) {
-  const head = ['Rank', 'Name', 'Class/ID', 'Objective /10', 'Reading /40', 'Listening /35', 'W1 words', 'W2 words', 'Time (s)', 'Submitted', 'Mode', 'Attempts', 'Writing T1', 'Writing T2'].concat(ITEMS.map(it => it.id));
-  const lines = [head].concat(rows.map(r => { const m = Object.fromEntries(r.answers.map(a => [a.id, a])); return [r.rank || '', r.name, r.sid || '', (+r.score10).toFixed(1), r.reading === null ? '' : r.reading, r.listening === null ? '' : r.listening, (r.wwords || {}).W1 || '', (r.wwords || {}).W2 || '', r.timeSec, r.submittedAt, r.mode || '', r.attempts || 1, (r.writing || {}).W1 || '', (r.writing || {}).W2 || ''].concat(ITEMS.map(it => m[it.id] ? (m[it.id].ok ? '1' : '0') : '')); }));
+  const head = ['Rank', 'Name', 'Class/ID', 'Objective /10', 'Reading', 'Listening', 'W1 words', 'W2 words', 'Time (s)', 'Submitted', 'Mode', 'Parts', 'Attempts', 'Writing T1', 'Writing T2'].concat(ITEMS.map(it => it.id));
+  const lines = [head].concat(rows.map(r => { const m = Object.fromEntries(r.answers.map(a => [a.id, a])); return [r.rank || '', r.name, r.sid || '', (+r.score10).toFixed(1), r.reading === null ? '' : r.reading, r.listening === null ? '' : r.listening, (r.wwords || {}).W1 || '', (r.wwords || {}).W2 || '', r.timeSec, r.submittedAt, r.mode || '', r.partsTaken || '', r.attempts || 1, (r.writing || {}).W1 || '', (r.writing || {}).W2 || ''].concat(ITEMS.map(it => m[it.id] ? (m[it.id].ok ? '1' : '0') : '')); }));
   const csv = '﻿' + lines.map(l => l.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = fname; a.click();
 }
@@ -1149,7 +1186,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('beforeunload', () => { if (S.status === 'running') save(); });
 applySettings(); refreshSettings();
 if (S.status === 'running') {
-  if (!S.skills || !S.skills.length) S.skills = SKILLS.slice();
+  if (!S.skills || !S.skills.length) S.skills = SKILLS.slice(); if (!S.parts) S.parts = {};
   renderQuiz();
   if (S.phase === 'run' && S.mode === 'exam' && Date.now() - S.secStart >= S.secDur * 1000) finishSection(true);
 } else if (S.status === 'done') {
