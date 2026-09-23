@@ -565,6 +565,7 @@ PARTS.forEach(p => { const row = PLAN[p.skill].parts.find(x => x[0] === p.id); p
 const partsOf = skill => PARTS.filter(p => p.skill === skill);
 const takenParts = skill => { const sel = S.parts && S.parts[skill]; return partsOf(skill).filter(p => !sel || sel.includes(p.id)); };
 const takenItems = () => ITEMS.filter(it => S.skills.includes(it.skill) && takenParts(it.skill).some(p => p.id === it.part));
+const partsTakenIds = (r, skill) => { const i = (r.skills || []).indexOf(skill); if (i < 0) return []; return (r.partsTaken || '').split('|')[i]?.split(',').filter(Boolean) || []; };
 const objMax = () => takenItems().length;
 const skillMinutes = skill => { const pl = PLAN[skill], tp = takenParts(skill); return tp.length === partsOf(skill).length ? pl.minutes : tp.reduce((s, p) => s + p.min, 0); };
 
@@ -972,13 +973,26 @@ function buildMarks(texts, items) {
   items.forEach(it => it.ev.forEach(ev => { const t = texts[ev.p]; const s = t.indexOf(ev.t); if (s < 0) return; per[ev.p].push({ s, e: s + ev.t.length, labels: [it.id] }); }));
   return per.map(list => { list.sort((a, b) => a.s - b.s); const out = []; list.forEach(x => { const last = out[out.length - 1]; if (last && x.s < last.e) { last.e = Math.max(last.e, x.e); if (!last.labels.includes(x.labels[0])) last.labels.push(x.labels[0]); } else out.push({ s: x.s, e: x.e, labels: x.labels.slice() }); }); return out; });
 }
-function reviewItem(it, a) {
+function reviewItem(it, a, prefix) {
+  prefix = prefix || '';
   const given = a.a === '' ? '<i>no answer</i>' : esc(a.a + '. ' + it.opts['ABCD'.indexOf(a.a)]);
-  return `<div class="item ${a.ok ? 'ok' : 'wrong'}" id="rv-${it.id}"><div class="mark ${a.ok ? 'ok' : 'no'}">${a.ok ? '✓' : '✗'}</div><div>
+  return `<div class="item ${a.ok ? 'ok' : 'wrong'}" id="rv-${prefix}${it.id}"><div class="mark ${a.ok ? 'ok' : 'no'}">${a.ok ? '✓' : '✗'}</div><div>
     <p class="q"><span class="chip mu" style="margin-right:6px">${it.n}</span>${esc(it.q)}</p>
     <div class="ans"><span class="you ${a.ok ? 'ok' : ''}">Your answer: ${given}</span>${a.ok ? '' : `<span class="key">Correct: ${keyLetter(it)}. ${esc(it.opts[it.a])}</span>`}</div>
     <div class="exp">${esc(it.exp)}</div>
-    ${it.ev.length ? `<div class="ev"><span>In the text:</span> ${it.ev.map(e => `<q>${esc(e.t)}</q>`).join(' ')} <button data-loc="${it.id}">Show in text</button></div>` : ''}</div></div>`;
+    ${it.ev.length ? `<div class="ev"><span>In the text:</span> ${it.ev.map(e => `<q>${esc(e.t)}</q>`).join(' ')} <button data-loc="${it.id}" data-prefix="${prefix}">Show in text</button></div>` : ''}</div></div>`;
+}
+function buildReview(r, prefix) {
+  prefix = prefix || '';
+  const okById = Object.fromEntries(r.answers.map(a => [a.id, a]));
+  const objParts = PARTS.filter(p => (p.kind === 'reading' || p.kind === 'listening') && (r.skills || []).includes(p.skill) && partsTakenIds(r, p.skill).includes(p.id));
+  return objParts.map(p => {
+    const its = PART_ITEMS[p.id];
+    let textBlock;
+    if (p.kind === 'reading') { const marks = buildMarks(p.src.paras, its); textBlock = passageHtml(p.src, marks); }
+    else { textBlock = '<div class="script" style="padding:12px 16px">' + p.src.blocks.map(b => { const texts = b.script.map(l => l.t); const marks = buildMarks(texts, b.items); return `<p style="color:var(--orange-ink);font:700 12px var(--font-cond);letter-spacing:.08em;text-transform:uppercase;margin-top:12px">${esc(b.intro)}</p>` + b.script.map((l, i) => `<p>${l.who ? `<b>${esc(l.who)}:</b> ` : ''}${markText(l.t, marks[i])}</p>`).join(''); }).join('') + '</div>'; }
+    return `<h3>${esc(p.title)}</h3><details class="fold" id="fold-${prefix}${p.id}"><summary>${p.kind === 'reading' ? 'Read the passage with the evidence highlighted' : 'Read the script with the evidence highlighted'}</summary><div class="in" style="padding:0">${textBlock}</div></details>` + its.map(it => reviewItem(it, okById[it.id], prefix)).join('');
+  }).join('') || '<div class="empty">No objective sections taken.</div>';
 }
 function renderResults() {
   const r = S.result; if (!r) return;
@@ -1003,20 +1017,15 @@ function renderResults() {
   const objParts = PARTS.filter(p => (p.kind === 'reading' || p.kind === 'listening') && took.includes(p.skill) && takenParts(p.skill).some(x => x.id === p.id));
   $('#r-parts').innerHTML = objParts.map(p => { const its = PART_ITEMS[p.id]; const c = its.filter(it => okById[it.id] && okById[it.id].ok).length; return bar(p.title, c / its.length * 100, `${c}/${its.length}`); }).join('') || '<div class="empty">No objective sections taken.</div>';
   // review with evidence
-  $('#r-review').innerHTML = objParts.map(p => {
-    const its = PART_ITEMS[p.id];
-    let textBlock;
-    if (p.kind === 'reading') { const marks = buildMarks(p.src.paras, its); textBlock = passageHtml(p.src, marks); }
-    else { textBlock = '<div class="script" style="padding:12px 16px">' + p.src.blocks.map(b => { const texts = b.script.map(l => l.t); const marks = buildMarks(texts, b.items); return `<p style="color:var(--orange-ink);font:700 12px var(--font-cond);letter-spacing:.08em;text-transform:uppercase;margin-top:12px">${esc(b.intro)}</p>` + b.script.map((l, i) => `<p>${l.who ? `<b>${esc(l.who)}:</b> ` : ''}${markText(l.t, marks[i])}</p>`).join(''); }).join('') + '</div>'; }
-    return `<h3>${esc(p.title)}</h3><details class="fold" id="fold-${p.id}"><summary>${p.kind === 'reading' ? 'Read the passage with the evidence highlighted' : 'Read the script with the evidence highlighted'}</summary><div class="in" style="padding:0">${textBlock}</div></details>` + its.map(it => reviewItem(it, okById[it.id])).join('');
-  }).join('') || '<div class="empty">No objective sections taken.</div>';
+  $('#r-review').innerHTML = buildReview(r, '');
   $$('.filter .toggle').forEach(b => b.onclick = () => { $$('.filter .toggle').forEach(x => x.classList.toggle('on', x === b)); const w = b.dataset.f === 'wrong'; $$('#r-review .item.ok').forEach(el => el.hidden = w); });
-  $('#r-review').onclick = e => { const b = e.target.closest('[data-loc]'); if (!b) return; locate(b.dataset.loc); };
+  $('#r-review').onclick = e => { const b = e.target.closest('[data-loc]'); if (!b) return; locate(b.dataset.loc, ''); };
   renderWritingResults(); renderSpeakingResults();
 }
-function locate(id) {
-  const it = ITEM[id]; const fold = $('#fold-' + it.part); if (!fold) return; fold.open = true;
-  const marks = $$(`#fold-${it.part} mark.hl`).filter(m => m.dataset.q.split(' ').includes(id));
+function locate(id, prefix) {
+  prefix = prefix || '';
+  const it = ITEM[id]; const fold = $('#fold-' + prefix + it.part); if (!fold) return; fold.open = true;
+  const marks = $$(`#fold-${prefix}${it.part} mark.hl`).filter(m => m.dataset.q.split(' ').includes(id));
   if (!marks.length) return;
   marks.forEach(m => { m.classList.remove('flash'); void m.offsetWidth; m.classList.add('flash'); });
   marks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1174,7 +1183,7 @@ async function loadSubs() {
     const j = await api('list'); if (!j.ok) throw new Error(j.error);
     RAW = cleanRows(j.rows || []).sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
     const tb = $('#subs-tbl tbody'); const adm = isAdmin();
-    tb.innerHTML = RAW.length ? RAW.map((r, i) => `<tr><td>${fmtDate(r.submittedAt)}${r.auto ? ' <span class="att">time up</span>' : ''}${r.mode === 'practice' ? ' <span class="att">practice</span>' : ''}</td><td>${esc(r.name)}</td><td>${esc(r.sid || '')}</td><td class="num">${r.reading === null ? '—' : r.reading}</td><td class="num">${r.listening === null ? '—' : r.listening}</td><td class="num">${(r.wwords.W1 || 0) + ' + ' + (r.wwords.W2 || 0)}</td><td class="num">${mmss(r.timeSec)}</td><td style="white-space:nowrap"><button class="btn ghost sm" data-view="${i}">Writing</button> ${adm ? `<button class="btn ghost sm" data-del="${i}">Delete</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="8" class="empty">No submissions yet.</td></tr>';
+    tb.innerHTML = RAW.length ? RAW.map((r, i) => `<tr><td>${fmtDate(r.submittedAt)}${r.auto ? ' <span class="att">time up</span>' : ''}${r.mode === 'practice' ? ' <span class="att">practice</span>' : ''}</td><td>${esc(r.name)}</td><td>${esc(r.sid || '')}</td><td class="num">${r.reading === null ? '—' : r.reading}</td><td class="num">${r.listening === null ? '—' : r.listening}</td><td class="num">${(r.wwords.W1 || 0) + ' + ' + (r.wwords.W2 || 0)}</td><td class="num">${mmss(r.timeSec)}</td><td style="white-space:nowrap"><button class="btn ghost sm" data-view="${i}">Writing</button> ${adm ? `<button class="btn ghost sm" data-review="${i}">Review</button> <button class="btn ghost sm" data-del="${i}">Delete</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="8" class="empty">No submissions yet.</td></tr>';
     st.textContent = `${RAW.length} attempt${RAW.length === 1 ? '' : 's'}`;
   } catch (e) { st.textContent = 'Could not load submissions.'; }
 }
@@ -1186,11 +1195,15 @@ $('#subs-tbl').addEventListener('click', async e => {
       <h3 style="margin:10px 0 6px">Task 1 · Email <span class="chip mu">${an1.n} words · ${an1.paras} par. · ${an1.col.length} unit phrases</span></h3><div class="usertext">${w.W1 ? esc(w.W1) : '<i>(empty)</i>'}</div>
       <h3 style="margin:14px 0 6px">Task 2 · Essay <span class="chip mu">${an2.n} words · ${an2.paras} par. · ${an2.col.length} unit phrases · sport × ${an2.sportN}</span></h3><div class="usertext">${w.W2 ? esc(w.W2) : '<i>(empty)</i>'}</div>`;
     $('#view-modal').hidden = false; return; }
+  const rv = e.target.closest('[data-review]'); if (rv) { const r = RAW[+rv.dataset.review]; if (!r || !isAdmin()) return;
+    $('#view-body').innerHTML = `<h2 style="margin:0 0 4px;font:700 20px var(--font);color:var(--purple-ink)">${esc(r.name)}${r.sid ? ' · ' + esc(r.sid) : ''}</h2><p class="sub">Reading ${r.reading === null ? '—' : r.reading + '/40'} · Listening ${r.listening === null ? '—' : r.listening + '/35'} · ${fmtDate(r.submittedAt)} · full script with the answer evidence highlighted, admin only</p>` + buildReview(r, 'adm-');
+    $('#view-modal').hidden = false; return; }
   const b = e.target.closest('[data-del]'); if (!b) return; const r = RAW[+b.dataset.del]; if (!r) return;
   const ok = await ask(`Delete the attempt by ${r.name} (${r.score10.toFixed(1)}/10, ${fmtDate(r.submittedAt)})? This cannot be undone.`, 'Delete'); if (!ok) return;
   const j = await api('delete', { clientId: r.clientId, submittedAt: r.submittedAt }); if (!j.ok) { alert('Could not delete: ' + (j.error || 'error')); return; }
   loadSubs();
 });
+$('#view-body').addEventListener('click', e => { const b = e.target.closest('[data-loc]'); if (!b) return; locate(b.dataset.loc, b.dataset.prefix || ''); });
 $('#view-close').addEventListener('click', () => { $('#view-modal').hidden = true; });
 $('#btn-clear-all').addEventListener('click', async () => {
   const ok = await ask('Delete ALL results for this test? Every student will be able to take it again. This cannot be undone.', 'Delete all'); if (!ok) return;
